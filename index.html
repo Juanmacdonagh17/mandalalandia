@@ -20,7 +20,7 @@
 
     header {
       text-align: center;
-      margin-bottom: 1.8rem;
+      margin-bottom: 1.4rem;
     }
     header h1 {
       font-size: 1.1rem;
@@ -28,13 +28,39 @@
       letter-spacing: 0.25em;
       text-transform: uppercase;
     }
-    header p {
+
+    #park-picker {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-top: 0.8rem;
+    }
+    #park-picker button {
+      background: none;
+      border: none;
+      font-size: 1rem;
+      color: #aaa;
+      cursor: pointer;
+      padding: 0 0.2rem;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    #park-picker button:hover { color: #333; }
+
+    #park-select {
+      background: none;
+      border: none;
+      font-family: inherit;
       font-size: 0.72rem;
-      color: #999;
-      margin-top: 0.4rem;
       letter-spacing: 0.12em;
       text-transform: uppercase;
+      color: #999;
+      cursor: pointer;
+      appearance: none;
+      text-align: center;
+      max-width: 260px;
     }
+    #park-select:focus { outline: none; color: #333; }
 
     #mandala-svg {
       display: block;
@@ -42,32 +68,24 @@
     }
 
     .region {
-      fill: #fff;
       stroke: #bbb;
       stroke-width: 0.6;
       transition: filter 0.08s;
     }
     .region:hover { filter: brightness(0.88); cursor: pointer; }
 
-    .divider {
-      fill: none;
-      stroke: #bbb;
-      stroke-width: 0.6;
-      pointer-events: none;
-    }
-
     #palette {
       display: flex;
       gap: 0.6rem;
-      margin: 1.6rem 0 0.8rem;
+      margin: 1.4rem 0 0.8rem;
       flex-wrap: wrap;
       justify-content: center;
       max-width: 520px;
     }
 
     .swatch {
-      width: 34px;
-      height: 34px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       cursor: pointer;
       border: 3px solid transparent;
@@ -75,10 +93,7 @@
       transition: transform 0.12s, border-color 0.12s;
     }
     .swatch:hover { transform: scale(1.15); }
-    .swatch.active {
-      border-color: #333;
-      transform: scale(1.15);
-    }
+    .swatch.active { border-color: #333; transform: scale(1.15); }
 
     #controls {
       display: flex;
@@ -86,7 +101,7 @@
       margin-top: 0.6rem;
     }
 
-    button {
+    button.ctrl {
       background: none;
       border: 1px solid #c8c8c8;
       padding: 0.45rem 1.1rem;
@@ -98,18 +113,18 @@
       font-family: inherit;
       transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    button:hover {
-      background: #333;
-      color: #fff;
-      border-color: #333;
-    }
+    button.ctrl:hover { background: #333; color: #fff; border-color: #333; }
   </style>
 </head>
 <body>
 
 <header>
   <h1>Mandala</h1>
-  <p id="park-name"></p>
+  <div id="park-picker">
+    <button id="btn-prev" title="Previous park">&#8592;</button>
+    <select id="park-select"></select>
+    <button id="btn-next" title="Next park">&#8594;</button>
+  </div>
 </header>
 
 <svg id="mandala-svg" width="540" height="540" viewBox="0 0 540 540">
@@ -119,10 +134,10 @@
 <div id="palette"></div>
 
 <div id="controls">
-  <button id="btn-undo">Undo</button>
-  <button id="btn-reset">Reset</button>
-  <button id="btn-new">New</button>
-  <button id="btn-download">Download</button>
+  <button class="ctrl" id="btn-undo">Undo</button>
+  <button class="ctrl" id="btn-reset">Reset</button>
+  <button class="ctrl" id="btn-new">New Design</button>
+  <button class="ctrl" id="btn-download">Download</button>
 </div>
 
 <script>
@@ -188,15 +203,18 @@ function makeRng(seed) {
   let s = seed >>> 0;
   return () => {
     s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
-    return ((s >>> 0) / 0xffffffff);
+    return (s >>> 0) / 0xffffffff;
   };
 }
+
+function rngInt(rng, min, max) { return min + Math.floor(rng() * (max - min + 1)); }
+function rngPick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
 
 // ── SVG helpers ──────────────────────────────────────────────────────────────
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const CX = 270, CY = 270;
 
-function el(tag, attrs) {
+function svgEl(tag, attrs) {
   const e = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   return e;
@@ -206,21 +224,20 @@ function polarXY(angle, r) {
   return [CX + r * Math.cos(angle), CY + r * Math.sin(angle)];
 }
 
-function arcPath(r0, r1, a0, a1) {
+function wedgePath(r0, r1, a0, a1) {
   const [ax, ay] = polarXY(a0, r0);
   const [bx, by] = polarXY(a1, r0);
   const [cx, cy] = polarXY(a1, r1);
   const [dx, dy] = polarXY(a0, r1);
-  const large = (a1 - a0 > Math.PI) ? 1 : 0;
-  return `M${ax} ${ay} A${r0} ${r0} 0 ${large} 1 ${bx} ${by} L${cx} ${cy} A${r1} ${r1} 0 ${large} 0 ${dx} ${dy}Z`;
+  const lg = (a1 - a0 > Math.PI) ? 1 : 0;
+  return `M${ax} ${ay} A${r0} ${r0} 0 ${lg} 1 ${bx} ${by} L${cx} ${cy} A${r1} ${r1} 0 ${lg} 0 ${dx} ${dy}Z`;
 }
 
 // ── Mandala generation ───────────────────────────────────────────────────────
 const svg = document.getElementById('mandala-svg');
-let groups = {}; // groupId → [elements]
+let groups = {};
 
 function generateMandala(seed) {
-  // Clear previous (keep the background rect)
   while (svg.children.length > 1) svg.removeChild(svg.lastChild);
   groups = {};
 
@@ -229,89 +246,111 @@ function generateMandala(seed) {
 
   function newGroup() { return gid++; }
 
-  function addRegion(pathEl, groupId) {
+  function addRegion(elem, groupId) {
     if (!groups[groupId]) groups[groupId] = [];
-    groups[groupId].push(pathEl);
-    pathEl.dataset.group = groupId;
-    pathEl.classList.add('region');
-    svg.appendChild(pathEl);
+    groups[groupId].push(elem);
+    elem.dataset.group = groupId;
+    elem.classList.add('region');
+    elem.style.fill = '#fff';
+    svg.appendChild(elem);
   }
 
-  // Center circle
-  {
-    const g = newGroup();
-    addRegion(el('circle', { cx: CX, cy: CY, r: 28 }), g);
-  }
-
-  // Define ring structure (varied by rng)
-  const baseN = 8;
-  const rings = [
-    { r0: 28, r1: 32, n: baseN,      subs: 1 },   // thin divider ring
-    { r0: 32, r1: 72, n: baseN,      subs: 1 },   // first main ring
-    { r0: 72, r1: 78, n: baseN * 2,  subs: 1 },   // thin divider
-    { r0: 78, r1: 118, n: baseN,     subs: 2 },   // second ring, 2 sub-regions each
-    { r0: 118, r1: 124, n: baseN * 3, subs: 1 },  // thin divider
-    { r0: 124, r1: 164, n: baseN * 2, subs: 1 },  // third ring 16-fold
-    { r0: 164, r1: 170, n: baseN,    subs: 1 },   // thin divider
-    { r0: 170, r1: 210, n: baseN,    subs: 3 },   // fourth ring, 3 sub-regions
-    { r0: 210, r1: 216, n: baseN * 2, subs: 1 },  // thin divider
-    { r0: 216, r1: 250, n: baseN * 3, subs: 1 },  // outer ring 24-fold
-    { r0: 250, r1: 256, n: baseN * 4, subs: 1 },  // outermost thin border
-  ];
-
-  for (const ring of rings) {
-    const { r0, r1, n, subs } = ring;
+  function addRing(r0, r1, n, subs) {
     const angleStep = (2 * Math.PI) / n;
     const subStep = angleStep / subs;
-    // One groupId per sub-slot, shared across all n sectors (symmetry!)
     const subGroups = Array.from({ length: subs }, newGroup);
-
     for (let i = 0; i < n; i++) {
       for (let s = 0; s < subs; s++) {
         const a0 = i * angleStep + s * subStep - Math.PI / 2;
-        const a1 = a0 + subStep;
-        addRegion(el('path', { d: arcPath(r0, r1, a0, a1) }), subGroups[s]);
+        addRegion(svgEl('path', { d: wedgePath(r0, r1, a0, a0 + subStep) }), subGroups[s]);
       }
     }
   }
 
-  // Decorative dot ring at r=75 (between ring 2 and 3)
-  {
+  function addDotRing(r, n, dotR) {
     const g = newGroup();
-    for (let i = 0; i < baseN; i++) {
-      const angle = (i + 0.5) * (2 * Math.PI / baseN) - Math.PI / 2;
-      addRegion(el('circle', { cx: CX + 75 * Math.cos(angle), cy: CY + 75 * Math.sin(angle), r: 7 }), g);
+    const step = (2 * Math.PI) / n;
+    for (let i = 0; i < n; i++) {
+      const angle = (i + 0.5) * step - Math.PI / 2;
+      addRegion(svgEl('circle', {
+        cx: CX + r * Math.cos(angle),
+        cy: CY + r * Math.sin(angle),
+        r: dotR
+      }), g);
     }
   }
 
-  // Decorative dot ring at r=121
-  {
-    const g = newGroup();
-    for (let i = 0; i < baseN * 2; i++) {
-      const angle = (i + 0.5) * (2 * Math.PI / (baseN * 2)) - Math.PI / 2;
-      addRegion(el('circle', { cx: CX + 121 * Math.cos(angle), cy: CY + 121 * Math.sin(angle), r: 5 }), g);
+  // ── Randomised structure ──
+  const baseN  = rngPick(rng, [6, 8, 10]);
+  const innerR = rngInt(rng, 20, 32);
+  const maxR   = 256;
+
+  // Center
+  { const g = newGroup(); addRegion(svgEl('circle', { cx: CX, cy: CY, r: innerR }), g); }
+
+  let cur = innerR;
+  const numRings = rngInt(rng, 3, 6);
+
+  for (let i = 0; i < numRings && cur < maxR - 20; i++) {
+    // Thin divider between rings
+    if (i > 0) {
+      const dw = rngInt(rng, 3, 7);
+      const de = cur + dw;
+      if (de < maxR - 15) {
+        const dn = baseN * rngPick(rng, [1, 2, 3]);
+        addRing(cur, de, dn, 1);
+        cur = de;
+      }
     }
+
+    // Dot accent at boundary (random chance)
+    if (i > 0 && rng() > 0.55) {
+      const dotN = baseN * rngPick(rng, [1, 2]);
+      const dotR = rngInt(rng, 4, 8);
+      if (cur + dotR * 2 < maxR - 10) {
+        addDotRing(cur, dotN, dotR);
+      }
+    }
+
+    // Main ring
+    const remaining  = maxR - cur;
+    const maxWidth   = Math.min(remaining - 15, 60);
+    if (maxWidth < 18) break;
+    const width = rngInt(rng, 18, maxWidth);
+    const end   = cur + width;
+    const mult  = rngPick(rng, [1, 1, 2, 2, 3]);
+    const subs  = mult === 1 ? rngPick(rng, [1, 2, 2, 3]) : 1;
+    addRing(cur, end, baseN * mult, subs);
+    cur = end;
   }
 
-  // Outer bounding circle (decorative only)
-  svg.appendChild(el('circle', { cx: CX, cy: CY, r: 257, fill: 'none', stroke: '#bbb', 'stroke-width': 0.6, 'pointer-events': 'none' }));
+  // Outer border strip
+  if (cur < maxR - 4) {
+    const borderN = baseN * rngPick(rng, [2, 3, 4]);
+    addRing(cur, Math.min(cur + 6, maxR), borderN, 1);
+    cur = Math.min(cur + 6, maxR);
+  }
+
+  // Bounding circle
+  svg.appendChild(svgEl('circle', { cx: CX, cy: CY, r: cur,
+    fill: 'none', stroke: '#bbb', 'stroke-width': 0.6, 'pointer-events': 'none' }));
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
 let selectedColor = null;
-let undoStack = []; // [{groupId, elements: [{el, prevFill}]}]
+let undoStack = [];
+let currentParkIdx = 0;
 
 // ── Click to fill ────────────────────────────────────────────────────────────
 svg.addEventListener('click', e => {
   if (!selectedColor) return;
   const target = e.target;
   if (!target.classList.contains('region')) return;
-  const gid = target.dataset.group;
-  const members = groups[gid];
+  const members = groups[target.dataset.group];
   if (!members) return;
-  const snapshot = members.map(m => ({ el: m, prevFill: m.getAttribute('fill') || '#fff' }));
-  members.forEach(m => m.setAttribute('fill', selectedColor));
-  undoStack.push(snapshot);
+  const snap = members.map(m => ({ el: m, prev: m.style.fill || '#fff' }));
+  members.forEach(m => m.style.fill = selectedColor);
+  undoStack.push(snap);
 });
 
 // ── Palette ──────────────────────────────────────────────────────────────────
@@ -334,14 +373,40 @@ function setupPalette(colors) {
   selectedColor = colors[0];
 }
 
+// ── Park picker ──────────────────────────────────────────────────────────────
+const parkSelect = document.getElementById('park-select');
+
+PARKS.forEach((p, i) => {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = p.name;
+  parkSelect.appendChild(opt);
+});
+
+function loadPark(idx) {
+  currentParkIdx = idx;
+  parkSelect.value = idx;
+  undoStack = [];
+  setupPalette(PARKS[idx].colors);
+}
+
+parkSelect.addEventListener('change', () => loadPark(+parkSelect.value));
+
+document.getElementById('btn-prev').addEventListener('click', () => {
+  loadPark((currentParkIdx - 1 + PARKS.length) % PARKS.length);
+});
+document.getElementById('btn-next').addEventListener('click', () => {
+  loadPark((currentParkIdx + 1) % PARKS.length);
+});
+
 // ── Controls ─────────────────────────────────────────────────────────────────
 document.getElementById('btn-undo').addEventListener('click', () => {
   if (!undoStack.length) return;
-  undoStack.pop().forEach(({ el, prevFill }) => el.setAttribute('fill', prevFill));
+  undoStack.pop().forEach(({ el, prev }) => el.style.fill = prev);
 });
 
 document.getElementById('btn-reset').addEventListener('click', () => {
-  document.querySelectorAll('.region').forEach(e => e.setAttribute('fill', '#fff'));
+  document.querySelectorAll('.region').forEach(e => e.style.fill = '#fff');
   undoStack = [];
 });
 
@@ -351,35 +416,27 @@ document.getElementById('btn-new').addEventListener('click', () => {
 });
 
 document.getElementById('btn-download').addEventListener('click', () => {
-  const svgEl = document.getElementById('mandala-svg');
-  const xml = new XMLSerializer().serializeToString(svgEl);
+  const xml = new XMLSerializer().serializeToString(svg);
   const canvas = document.createElement('canvas');
-  canvas.width = 540;
-  canvas.height = 540;
+  canvas.width = canvas.height = 540;
   const ctx = canvas.getContext('2d');
   const img = new Image();
-  const blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml;charset=utf-8' }));
   img.onload = () => {
     ctx.drawImage(img, 0, 0);
     URL.revokeObjectURL(url);
-    const a = document.createElement('a');
-    a.download = 'mandala.png';
-    a.href = canvas.toDataURL('image/png');
-    a.click();
+    Object.assign(document.createElement('a'), {
+      download: `mandala-${PARKS[currentParkIdx].name}.png`,
+      href: canvas.toDataURL('image/png')
+    }).click();
   };
   img.src = url;
 });
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-function init() {
-  const park = PARKS[Math.floor(Math.random() * PARKS.length)];
-  document.getElementById('park-name').textContent = park.name;
-  setupPalette(park.colors);
-  generateMandala(Math.random() * 0xffffffff | 0);
-}
-
-init();
+const startIdx = Math.floor(Math.random() * PARKS.length);
+loadPark(startIdx);
+generateMandala(Math.random() * 0xffffffff | 0);
 </script>
 </body>
 </html>
