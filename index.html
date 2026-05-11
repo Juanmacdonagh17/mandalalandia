@@ -338,83 +338,39 @@ svg.addEventListener('click', e => {
   undoStack.push(snap);
 });
 
-// ── Colour grouping ──────────────────────────────────────────────────────────
-function hexToHsl(hex) {
-  let r = parseInt(hex.slice(1,3),16)/255;
-  let g = parseInt(hex.slice(3,5),16)/255;
-  let b = parseInt(hex.slice(5,7),16)/255;
-  const max = Math.max(r,g,b), min = Math.min(r,g,b);
-  let h = 0, s = 0, l = (max+min)/2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d/(2-max-min) : d/(max+min);
-    switch(max) {
-      case r: h = ((g-b)/d + (g<b?6:0))/6; break;
-      case g: h = ((b-r)/d + 2)/6; break;
-      case b: h = ((r-g)/d + 4)/6; break;
-    }
-  }
-  return [h*360, s, l];
-}
-
-const GROUP_ORDER = ['dark','neutral','red','orange','yellow','green','teal','blue','purple','pink','light'];
-const GROUP_LABELS = {
-  dark:'Darks', neutral:'Neutrals', red:'Reds', orange:'Oranges',
-  yellow:'Yellows', green:'Greens', teal:'Teals', blue:'Blues',
-  purple:'Purples', pink:'Pinks', light:'Lights'
-};
-
-function colorGroup(hex) {
-  const [h, s, l] = hexToHsl(hex);
-  if (l < 0.13) return 'dark';
-  if (l > 0.88) return 'light';
-  if (s < 0.13) return 'neutral';
-  if (h < 20 || h >= 340) return 'red';
-  if (h < 45) return 'orange';
-  if (h < 72) return 'yellow';
-  if (h < 160) return 'green';
-  if (h < 200) return 'teal';
-  if (h < 265) return 'blue';
-  if (h < 310) return 'purple';
-  return 'pink';
-}
+// ── Colour groups (pre-classified from parques_data) ────────────────────────
+const COLOR_GROUPS = [
+  { key: 'negro',   label: 'Blacks',   colors: ["#080908","#080A09","#090908","#090909","#090B08","#090C0B","#091B11","#0A0808","#0A0B08","#0A0C09","#0A0D0B","#0B0E0B","#0B0E0C","#0C0E0D","#0C1015","#0D0C0B","#0D0E0F","#0D0F0F","#0D110C","#0D1210","#0E0E0B","#0F100D","#0F120F","#0F1213","#100F0F","#101414","#110908","#111510","#131717","#140F0E","#141511","#141B0F","#15100F","#161614","#181312","#1E1B14"] },
+  { key: 'gris',    label: 'Greys',    colors: ["#292E28","#3D4140","#403E46","#424243","#45444C","#464748","#484046","#4E565A","#51574C","#544A4D","#575F65","#5A5D66","#5A6169","#5B5F60","#5C6060","#5C656A","#5D676A","#5E626C","#5E6769","#5F6466","#605B65","#626167","#62666A","#635655","#656768","#656B66","#666259","#676E6B","#6B6762","#6B7463","#6E695F","#70706D","#736B6C","#74786E","#77666A","#8C98A1","#92857D","#92928A","#9C9C9C","#A09E8A","#ADAF98","#AFC6C1","#B2AB9C","#B8C1C7","#BECDD3","#C1C3CA","#C6C9C7","#CBC8B6","#CCCDD4","#CDBEB6","#D8D6C2","#E1DFDB","#E3DFD5","#E6E4C8"] },
+  { key: 'blanco',  label: 'Whites',   colors: ["#DFEDF7","#EFEBD8","#F0EDD9"] },
+  { key: 'marron',  label: 'Browns',   colors: ["#3A271F","#3B2820","#3C2821","#3D2820","#3D2922","#3D2B24","#3E2921","#3E2922","#402D24","#402D25","#412C23","#412C24","#412D24","#412D25","#412E25","#422B23","#422C23","#422C24","#422D24","#422D25","#422E24","#422E26","#422F25","#422F26","#432C23","#432D24","#433026","#442C24","#442D24","#462A1E","#472D20","#482C1E","#492C20","#4A3020","#4E3929","#51473F","#52382C","#523E2B","#53442C","#57422E","#584230","#5B5644","#5C3E33","#60412B","#615A3F","#635746","#644427","#644B2B","#644B2E","#644B35","#64534A","#65452E","#65482D","#654B37","#664931","#664A3D","#673E2F","#674120","#675E48","#685943","#6A4D39","#6B6244","#6C472F","#6E3E22","#6E5033","#715B29","#734E1F","#754332","#76574A","#775936","#78634F","#796F59","#7E3A1B","#7E702A","#806838","#806955","#827B6B","#845B2B","#846C2B","#89846F","#8C5F45","#8C6049","#8C7035","#8C7D41","#8D7432","#8D744A","#8E6C58","#8E7261","#8F8276","#8F865E","#90654D","#917344","#917E4B","#928A71","#937D51","#957C5F","#96856F","#976647","#977B4C","#977E5E","#997566","#99884A","#9A866D","#9C6C54","#9E7746","#9E7B58","#9F9586","#A18934","#A48439","#A4907F","#A58971","#A59075","#A88267","#AA9A74","#AE7446","#B1713F","#B1A48B","#B1A58B","#B3A485","#B46234","#B47C5C","#B48C5C","#B48C64","#B4943C","#BC7443","#BC8442","#BC8C5E","#BC8C7B","#BC9452","#BC9484","#BC9C75","#BFA28D"] },
+  { key: 'rojo',    label: 'Reds',     colors: ["#261917","#3E2821","#422B26","#452E27","#473034","#4B3129","#50342B","#5C4947","#644446","#684845","#6A5753","#6B2925","#6C3F36","#6F201D","#6F4848","#72494E","#80524E","#834137","#953835","#9C5546","#A55F63","#A91E23","#B4645E","#B4747C","#B68C8E","#BC1C3B","#BC3F42","#BC847C","#BDA49E","#C0646C","#C53B45","#C55B4F","#C64141","#CA6555","#CB1B36","#CB433E","#CC443A","#CE412E","#D3453E","#D63C32","#DA3948","#E9322B"] },
+  { key: 'rosa',    label: 'Pinks',    colors: ["#7C4C5C","#C8557F","#D2AEB9"] },
+  { key: 'naranja', label: 'Oranges',  colors: ["#C08257","#C08667","#C49C74","#C76334","#CEAF8D","#E6D3B3","#E7D5BA"] },
+  { key: 'amarillo',label: 'Yellows',  colors: ["#545641","#555641","#5A5D3D","#5C613B","#5F5E42","#60604F","#645D36","#6F7251","#7D8454","#858B4D","#887824","#888A47","#8D8C53","#8E8B52","#8F8965","#94965B","#958E5F","#959B58","#989568","#9C8F3A","#9E995A","#A09657","#A3A04D","#A4A463","#A6B653","#A8B06D","#A8B44C","#AAA444","#ACB44C","#ADBC5A","#AEAC53","#AFBC51","#B2B23C","#B2BA84","#B4BC4C","#BAA53B","#C4A410","#CABA63","#CCB13C","#D0C091","#D6C46A","#DCC762","#DDCA53","#DEC898","#DFC16A","#E2C37A","#E2C967","#E5C06A","#E6C95B","#E7D144","#E8BE53","#EAD05F","#EBD150","#EBD464","#ECCD6F","#ECD363","#EDD560","#EFCD56","#F1D311","#F2D255","#F2D553","#F2D653","#F2DB5F","#F2DB68","#F3D64F","#F3D653","#F3D849","#F3E4C0","#F4D40B","#F4D650","#F4D751","#F4D94E","#F4D955","#F4DB58","#F5D25E","#F5DA50","#F5DC57","#F6DA54","#F6DC17","#F6E06D","#F7DA4D","#F7DB60","#F7DC43","#F7DC50","#F7DC56","#F8DC4C","#F9DD4C","#F9DE4C","#F9DE71","#F9DF53","#FADE4B","#FADE4C","#FADF4E","#FAF3CC","#FBE04D"] },
+  { key: 'verde',   label: 'Greens',   colors: ["#38534C","#396343","#3C5946","#3D6446","#3E5941","#435E30","#438A4F","#447461","#466054","#48533F","#4B6441","#4C573D","#4C5F3F","#4C6D56","#4E593C","#4E6237","#4F6140","#50553F","#50583E","#515D49","#527C58","#535E4F","#555C3F","#555D3A","#556042","#575B45","#575D3C","#587353","#58875E","#5B6C3C","#5B7D69","#5B7F4C","#5C6146","#5C6738","#5C7F76","#5E8556","#5F7A6D","#60743D","#61834E","#628251","#638C4D","#638C56","#648040","#667865","#668352","#677760","#687B5C","#6B7C52","#6B8E54","#6C7548","#6C775C","#6C8062","#6C8F53","#6D7B4D","#6F755F","#6FC39C","#707C56","#70865D","#719D54","#738B53","#7E8670","#7F8E43","#808F5C","#8AB167","#8F947D","#949D6B","#94AE5D","#97A45A","#9BBA73","#9DBDB7","#A2AE7F","#A7B470","#B4DC5F","#BECD8E","#C4D4AC","#C4DCAC","#C4DCB2","#C6DBAE","#C8DCAB","#CCDCA1","#CED9A1","#D6E2C0"] },
+  { key: 'cian',    label: 'Teals',    colors: ["#1A7183","#1F5664","#209FB4","#30444D","#30A6B1","#30B6BD","#33676D","#38B4BC","#3A5C69","#3E474A","#3E8C94","#415F68","#435459","#43797E","#445454","#446471","#446C7F","#44747E","#447484","#458089","#476371","#4C676E","#4F6068","#628A99","#6A99AF","#6FA1B7","#719FB3","#71A1B7","#79949B","#7B9CA4","#82C8E9","#88BCD2","#8BCAE1","#8CD8EA","#8CDCFB","#8FD7EF","#90A5AC","#91D8DD","#94ACB5","#94B3BC","#99CECA","#9ACEE7","#9BBECA","#9BD1E3","#9BD2EA","#9BD2ED","#9CCAD3","#9CD1E6","#9DD1E9","#A4CCE0","#A8CFDD","#AED7EA"] },
+  { key: 'azul',    label: 'Blues',    colors: ["#042C53","#062C53","#062C59","#072743","#092943","#161820","#2A3C54","#2C4C8C","#315A79","#37576D","#3C4752","#3C5367","#3C5A74","#3C648C","#3C6A94","#3C6C94","#3C74A4","#3E3F49","#3E4D55","#3E7494","#405A72","#406C96","#415C6C","#425A69","#426A8C","#434C54","#435C6B","#435F77","#445F76","#44647C","#44687C","#446C84","#446C94","#44748C","#447494","#44749A","#447C9C","#447CB4","#456988","#4A6378","#4C779D","#4C7BA4","#4C7CAC","#4F7390","#505C63","#5184AE","#535C65","#5381A2","#546068","#547CA4","#566A7D","#57646D","#5CA1CF","#5E6187","#618FB5","#628CAD","#63859C","#668AAA","#6784A0","#69A1CB","#6BA4DB","#6C92A8","#728792","#72A3CF","#72A8D8","#72A9D8","#72A9D9","#72AAD9","#73A8D6","#769FB7","#7AABD2","#7BABDA","#7BADDD","#7EA4B8","#7FB7E1","#80B7E1","#8196A2","#83859E","#839CAC","#83A8C6","#8998A2","#8ABCDB","#8B96A4","#8BC2E9","#8C9BA7","#8CC0E6","#8EA6B3","#91A3AC","#91C0E0","#91C6E5","#93CBEE","#94D0F3","#98C9EA","#99BCD1","#9AD0F1","#9BD3F3","#9CD3F2","#9CD3F3","#9CD4F1","#9CD4F3","#9CD4F4","#9ED4F2","#9ED4F3","#9FC2D5","#A0D5F2","#A1D4EF","#A2D5F0"] },
+  { key: 'violeta', label: 'Purples',  colors: ["#5A4E6F","#684484"] },
+];
 
 function buildPalette() {
-  // Collect all unique colours across all parks
-  const seen = new Set();
-  const byGroup = {};
-  GROUP_ORDER.forEach(g => byGroup[g] = []);
-
-  PARKS.forEach(p => p.colors.forEach(hex => {
-    const key = hex.toUpperCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    const g = colorGroup(key);
-    byGroup[g].push({ hex: key, hsl: hexToHsl(key) });
-  }));
-
-  // Sort each group by lightness (dark → light)
-  GROUP_ORDER.forEach(g => byGroup[g].sort((a,b) => a.hsl[2] - b.hsl[2]));
-
   const palette = document.getElementById('palette');
   palette.innerHTML = '';
 
-  GROUP_ORDER.forEach(g => {
-    const colours = byGroup[g];
-    if (!colours.length) return;
-
+  COLOR_GROUPS.forEach(({ label, colors }) => {
     const row = document.createElement('div');
     row.className = 'color-group';
 
-    const label = document.createElement('span');
-    label.className = 'group-label';
-    label.textContent = GROUP_LABELS[g];
-    row.appendChild(label);
+    const lbl = document.createElement('span');
+    lbl.className = 'group-label';
+    lbl.textContent = label;
+    row.appendChild(lbl);
 
     const swatches = document.createElement('div');
     swatches.className = 'group-swatches';
 
-    colours.forEach(({ hex }) => {
+    colors.forEach(hex => {
       const s = document.createElement('button');
       s.className = 'swatch';
       s.style.background = hex;
@@ -432,7 +388,6 @@ function buildPalette() {
     palette.appendChild(row);
   });
 
-  // Select the first colour by default
   const first = palette.querySelector('.swatch');
   if (first) { first.classList.add('active'); selectedColor = first.title; }
 }
