@@ -150,7 +150,7 @@
 </div>
 
 <svg id="mandala-svg" width="540" height="540" viewBox="0 0 540 540">
-  <circle cx="270" cy="270" r="270" fill="#fff" />
+  <circle id="mandala-bg" cx="270" cy="270" r="258" fill="#fff" />
 </svg>
 
 <div id="palette-header">
@@ -354,6 +354,9 @@ function generateMandala(seed) {
   // Bounding circle
   svg.appendChild(svgEl('circle', { cx: CX, cy: CY, r: cur,
     fill: 'none', stroke: '#bbb', 'stroke-width': 0.6, 'pointer-events': 'none' }));
+
+  // Match background circle to actual mandala radius
+  document.getElementById('mandala-bg').setAttribute('r', cur);
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
