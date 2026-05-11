@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mandala</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: #f5f4f0;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 3rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 1.8rem;
+    }
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: normal;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+    }
+    header p {
+      font-size: 0.72rem;
+      color: #999;
+      margin-top: 0.4rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    #mandala-svg {
+      display: block;
+      cursor: crosshair;
+    }
+
+    .region {
+      fill: #fff;
+      stroke: #bbb;
+      stroke-width: 0.6;
+      transition: filter 0.08s;
+    }
+    .region:hover { filter: brightness(0.88); cursor: pointer; }
+
+    .divider {
+      fill: none;
+      stroke: #bbb;
+      stroke-width: 0.6;
+      pointer-events: none;
+    }
+
+    #palette {
+      display: flex;
+      gap: 0.6rem;
+      margin: 1.6rem 0 0.8rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 520px;
+    }
+
+    .swatch {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 3px solid transparent;
+      outline: none;
+      transition: transform 0.12s, border-color 0.12s;
+    }
+    .swatch:hover { transform: scale(1.15); }
+    .swatch.active {
+      border-color: #333;
+      transform: scale(1.15);
+    }
+
+    #controls {
+      display: flex;
+      gap: 0.8rem;
+      margin-top: 0.6rem;
+    }
+
+    button {
+      background: none;
+      border: 1px solid #c8c8c8;
+      padding: 0.45rem 1.1rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      cursor: pointer;
+      color: #666;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    button:hover {
+      background: #333;
+      color: #fff;
+      border-color: #333;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Mandala</h1>
+  <p id="park-name"></p>
+</header>
+
+<svg id="mandala-svg" width="540" height="540" viewBox="0 0 540 540">
+  <rect width="540" height="540" fill="#fff" />
+</svg>
+
+<div id="palette"></div>
+
+<div id="controls">
+  <button id="btn-undo">Undo</button>
+  <button id="btn-reset">Reset</button>
+  <button id="btn-new">New</button>
+  <button id="btn-download">Download</button>
+</div>
+
+<script>
+// ── Park data ────────────────────────────────────────────────────────────────
+const PARKS = [
+  {name:"Baritú",colors:["#0A0B08","#422C23","#48533F","#505C63","#638C4D","#644427","#8196A2","#8AB167","#8C7D41","#99CECA","#B4747C","#F2D255"]},
+  {name:"El Nogalar de Los Toldos",colors:["#141B0F","#422E24","#4C5F3F","#5C656A","#6C8F53","#6E5033","#94ACB5","#A2AE7F","#A8CFDD","#C49C74","#CCCDD4","#F7DA4D"]},
+  {name:"El Rey",colors:["#111510","#422F26","#4B6441","#5E8556","#64534A","#676E6B","#8F947D","#90A5AC","#9BBECA","#ACB44C","#B4943C","#F5DA50"]},
+  {name:"Los Cardones",colors:["#0E0E0B","#422E24","#5F5E42","#644B35","#656768","#6D7B4D","#96856F","#9CD4F3","#B2AB9C","#C53B45","#F2D653","#F3E4C0"]},
+  {name:"Pizarro",colors:["#090908","#432D24","#515D49","#544A4D","#668352","#736B6C","#94B3BC","#9CD3F2","#A4907F","#C8557F","#D2AEB9","#F5D25E"]},
+  {name:"Aconquija",colors:["#3D2922","#434C54","#435459","#523E2B","#5F6466","#78634F","#8C7035","#917E4B","#9ED4F3","#9F9586","#C6DBAE","#ECCD6F"]},
+  {name:"Calilegua",colors:["#0F120F","#422F25","#4E565A","#5B6C3C","#5C7F76","#8D744A","#91A3AC","#94AE5D","#9BD2EA","#D8D6C2","#DA3948","#EBD150"]},
+  {name:"Laguna de los Pozuelos",colors:["#37576D","#3D2B24","#406C96","#445454","#44749A","#6784A0","#6BA4DB","#834137","#98C9EA","#A58971","#CCB13C","#F9DE71"]},
+  {name:"Copo",colors:["#0F100D","#422D24","#464748","#5C6738","#656B66","#6C7548","#839CAC","#888A47","#9DD1E9","#B4943C","#DDCA53","#E3DFD5"]},
+  {name:"Iguazú",colors:["#0D0C0B","#452E27","#4A6378","#664A3D","#685943","#719D54","#73A8D6","#8E6C58","#9CD3F2","#A6B653","#BC9452","#F2DB68"]},
+  {name:"Campo San Juan",colors:["#292E28","#675E48","#7E702A","#7F8E43","#82C8E9","#953835","#9C9C9C","#A55F63","#C4D4AC","#CABA63","#D6C46A","#E1DFDB"]},
+  {name:"San Antonio",colors:["#091B11","#435C6B","#435E30","#438A4F","#482C1E","#674120","#6A99AF","#845B2B","#8CD8EA","#CB1B36","#D6E2C0","#F1D311"]},
+  {name:"Chaco",colors:["#141511","#402D25","#5B5644","#5C6060","#6B2925","#6C92A8","#70865D","#937D51","#9CCAD3","#AFBC51","#CC443A","#E6C95B"]},
+  {name:"El Impenetrable",colors:["#0C1015","#422E26","#51574C","#5B7F4C","#5E6769","#7EA4B8","#806955","#9CD4F3","#AA9A74","#ADBC5A","#BC9C75","#F4D955"]},
+  {name:"Laguna el Palmar",colors:["#131717","#492C20","#547CA4","#5A4E6F","#615A3F","#6C3F36","#6C8062","#7BABDA","#8FD7EF","#9C8F3A","#C4A410","#F6DC17"]},
+  {name:"Colonia Benítez",colors:["#0F1213","#3E3F49","#412D24","#4C573D","#5E6187","#638C56","#72A9D8","#928A71","#9BD3F3","#A8B44C","#B48C5C","#F3D64F"]},
+  {name:"Iberá",colors:["#161820","#422F26","#445F76","#4C779D","#555D3A","#664931","#6B8E54","#72A8D8","#8E8B52","#9BD1E3","#CB433E","#F4D751"]},
+  {name:"Mburucuyá",colors:["#0D1210","#422D25","#4C7BA4","#4F6140","#57646D","#65452E","#667865","#72AAD9","#94965B","#9CD3F2","#BC847C","#F6E06D"]},
+  {name:"Río Pilcomayo",colors:["#101414","#422D24","#425A69","#50553F","#628CAD","#677760","#8ABCDB","#977B4C","#97A45A","#BC7443","#E5C06A","#E6D3B3"]},
+  {name:"Formosa",colors:["#111510","#412E25","#5C6146","#5D676A","#61834E","#65482D","#769FB7","#9CD4F4","#A59075","#B4BC4C","#C64141","#F3D653"]},
+  {name:"Quebrada del Condorito",colors:["#3B2820","#3C5A74","#3E4D55","#446471","#584230","#60743D","#959B58","#A4CCE0","#B1A58B","#B4DC5F","#F0EDD9","#F9DE4C"]},
+  {name:"Traslasierra",colors:["#0A0C09","#422C24","#4F6068","#50583E","#687B5C","#6F201D","#7B9CA4","#958E5F","#9CD1E6","#D3453E","#E2C967","#E7D5BA"]},
+  {name:"Ansenuza",colors:["#2C4C8C","#315A79","#462A1E","#566A7D","#7BADDD","#8CDCFB","#917344","#92928A","#A91E23","#AFC6C1","#E9322B","#F7DB60"]},
+  {name:"Cerro Pistarini",colors:["#0D110C","#4A3020","#58875E","#6F7251","#6FA1B7","#70706D","#734E1F","#8F8276","#91D8DD","#BC1C3B","#C6C9C7","#F4D40B"]},
+  {name:"El Leoncito",colors:["#3E2922","#44687C","#447461","#4E3929","#587353","#635655","#796F59","#92857D","#A18934","#B8C1C7","#CED9A1","#D0C091"]},
+  {name:"San Guillermo",colors:["#3E2821","#44647C","#446C84","#52382C","#6F4848","#80524E","#8D7432","#A88267","#AED7EA","#BDA49E","#E2C37A","#FADF4E"]},
+  {name:"Sierra de las Quijadas",colors:["#3D2820","#3E7494","#415F68","#447C9C","#60412B","#6B6244","#976647","#9CD4F3","#C08257","#CEAF8D","#F4D650","#FAF3CC"]},
+  {name:"Talampaya",colors:["#261917","#4B3129","#60604F","#684845","#77666A","#8C6049","#8EA6B3","#9E7B58","#A0D5F2","#B4645E","#C08667","#FADE4C"]},
+  {name:"Islas de Santa Fe",colors:["#0B0E0C","#30444D","#432C23","#476371","#5184AE","#5A5D3D","#628251","#71A1B7","#8C5F45","#9BD2ED","#B47C5C","#F7DC50"]},
+  {name:"Pre-Delta",colors:["#090C0B","#2A3C54","#422B23","#447484","#546068","#648040","#719FB3","#7E3A1B","#89846F","#9CD4F4","#B46234","#F2D553"]},
+  {name:"El Palmar",colors:["#0C0E0D","#412D25","#575B45","#5B5F60","#644B2E","#6B7C52","#8998A2","#949D6B","#9CD4F1","#A7B470","#BC9484","#F2DB5F"]},
+  {name:"Ciervo de los Pantanos",colors:["#1E1B14","#3C648C","#442D24","#45444C","#556042","#775936","#887824","#8D8C53","#A1D4EF","#B2BA84","#BECD8E","#F9DD4C"]},
+  {name:"Campos del Tuyú",colors:["#3A271F","#3C5367","#44748C","#447CB4","#53442C","#5C613B","#9AD0F1","#9E995A","#B1A48B","#CCDCA1","#EFEBD8","#FADE4B"]},
+  {name:"Lanín",colors:["#0B0E0B","#402D24","#535C65","#555641","#5B7D69","#644446","#83859E","#8F865E","#91C6E5","#9BBA73","#B68C8E","#EBD464"]},
+  {name:"Laguna Blanca",colors:["#15100F","#50342B","#5C4947","#62666A","#645D36","#858B4D","#8C98A1","#90654D","#91C0E0","#A4A463","#C0646C","#F4DB58"]},
+  {name:"Los Arrayanes",colors:["#090C0B","#396343","#422B23","#435F77","#527C58","#6E3E22","#72A9D9","#88BCD2","#B1713F","#C76334","#E6E4C8","#E8BE53"]},
+  {name:"Nahuel Huapi",colors:["#0A0D0B","#3C5946","#403E46","#422B26","#4C6D56","#605B65","#668AAA","#7D8454","#80B7E1","#A48439","#BECDD3","#DCC762"]},
+  {name:"Islote Lobos",colors:["#100F0F","#472D20","#575F65","#6A4D39","#6F755F","#754332","#8BCAE1","#8C9BA7","#9A866D","#B2B23C","#C55B4F","#E7D144"]},
+  {name:"Lihué Calel",colors:["#3C2821","#44647C","#446C7F","#5C3E33","#5F7A6D","#715B29","#76574A","#989568","#9ED4F2","#BFA28D","#C4DCAC","#F6DA54"]},
+  {name:"Los Alerces",colors:["#110908","#433026","#484046","#4E593C","#626167","#6C775C","#808F5C","#8B96A4","#9DBDB7","#AAA444","#B48C64","#EDD560"]},
+  {name:"Lago Puelo",colors:["#080908","#412C24","#555C3F","#5A5D66","#673E2F","#6B7463","#79949B","#7FB7E1","#9C5546","#AEAC53","#BC3F42","#EFCD56"]},
+  {name:"Patagonia Austral",colors:["#062C53","#161614","#424243","#456988","#466054","#4C7CAC","#5381A2","#72AAD9","#957C5F","#9CD3F3","#BC8442","#ECD363"]},
+  {name:"Los Glaciares",colors:["#3A5C69","#3D2922","#3E5941","#426A8C","#44747E","#545641","#69A1CB","#728792","#997566","#99BCD1","#DFEDF7","#F3D849"]},
+  {name:"Perito Moreno",colors:["#090B08","#422C23","#4E6237","#5E626C","#654B37","#738B53","#83A8C6","#977E5E","#9CD4F3","#BC8C7B","#CDBEB6","#F8DC4C"]},
+  {name:"Patagonia",colors:["#080A09","#3C6A94","#405A72","#412C23","#575D3C","#6C472F","#707C56","#72A3CF","#99884A","#9ACEE7","#CE412E","#F5DC57"]},
+  {name:"Bosques Petrificados de Jaramillo",colors:["#3E2921","#415C6C","#446471","#57422E","#666259","#846C2B","#8E7261","#9E7746","#A2D5F0","#B3A485","#DEC898","#FBE04D"]},
+  {name:"Monte León",colors:["#140F0E","#3C74A4","#442C24","#628A99","#684484","#7C4C5C","#827B6B","#8CC0E6","#ADAF98","#BAA53B","#C8DCAB","#F9DF53"]},
+  {name:"Makenke",colors:["#062C59","#446C94","#447494","#51473F","#63859C","#6E695F","#93CBEE","#A09657","#A09E8A","#C4DCB2","#F7DC43","#F7DC56"]},
+  {name:"Isla Pingüino",colors:["#042C53","#0A0808","#38534C","#3D6446","#473034","#4F7390","#618FB5","#72494E","#8BC2E9","#A3A04D","#D63C32","#DFC16A"]},
+  {name:"Tierra del Fuego",colors:["#090909","#3C6C94","#422C24","#5A6169","#635746","#644B2B","#74786E","#7AABD2","#8F8965","#9CD3F3","#BC8C5E","#EAD05F"]},
+  {name:"Isla de los Estados",colors:["#0D0F0F","#3C4752","#412C24","#4C676E","#535E4F","#5CA1CF","#7E8670","#806838","#94D0F3","#AE7446","#C1C3CA","#F4D94E"]},
+  {name:"Namuncurá Banco Burdwood",colors:["#072743","#181312","#1A7183","#1F5664","#209FB4","#38B4BC","#3D4140","#458089","#6A5753","#6FC39C","#CA6555","#CBC8B6"]},
+  {name:"Yaganes",colors:["#092943","#0D0E0F","#30A6B1","#30B6BD","#33676D","#3E474A","#3E8C94","#43797E","#6B6762","#9C6C54","#9FC2D5","#A8B06D"]},
+];
+
+// ── Seeded RNG ───────────────────────────────────────────────────────────────
+function makeRng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s ^= s << 13; s ^= s >>> 17; s ^= s << 5;
+    return ((s >>> 0) / 0xffffffff);
+  };
+}
+
+// ── SVG helpers ──────────────────────────────────────────────────────────────
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const CX = 270, CY = 270;
+
+function el(tag, attrs) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  return e;
+}
+
+function polarXY(angle, r) {
+  return [CX + r * Math.cos(angle), CY + r * Math.sin(angle)];
+}
+
+function arcPath(r0, r1, a0, a1) {
+  const [ax, ay] = polarXY(a0, r0);
+  const [bx, by] = polarXY(a1, r0);
+  const [cx, cy] = polarXY(a1, r1);
+  const [dx, dy] = polarXY(a0, r1);
+  const large = (a1 - a0 > Math.PI) ? 1 : 0;
+  return `M${ax} ${ay} A${r0} ${r0} 0 ${large} 1 ${bx} ${by} L${cx} ${cy} A${r1} ${r1} 0 ${large} 0 ${dx} ${dy}Z`;
+}
+
+// ── Mandala generation ───────────────────────────────────────────────────────
+const svg = document.getElementById('mandala-svg');
+let groups = {}; // groupId → [elements]
+
+function generateMandala(seed) {
+  // Clear previous (keep the background rect)
+  while (svg.children.length > 1) svg.removeChild(svg.lastChild);
+  groups = {};
+
+  const rng = makeRng(seed);
+  let gid = 0;
+
+  function newGroup() { return gid++; }
+
+  function addRegion(pathEl, groupId) {
+    if (!groups[groupId]) groups[groupId] = [];
+    groups[groupId].push(pathEl);
+    pathEl.dataset.group = groupId;
+    pathEl.classList.add('region');
+    svg.appendChild(pathEl);
+  }
+
+  // Center circle
+  {
+    const g = newGroup();
+    addRegion(el('circle', { cx: CX, cy: CY, r: 28 }), g);
+  }
+
+  // Define ring structure (varied by rng)
+  const baseN = 8;
+  const rings = [
+    { r0: 28, r1: 32, n: baseN,      subs: 1 },   // thin divider ring
+    { r0: 32, r1: 72, n: baseN,      subs: 1 },   // first main ring
+    { r0: 72, r1: 78, n: baseN * 2,  subs: 1 },   // thin divider
+    { r0: 78, r1: 118, n: baseN,     subs: 2 },   // second ring, 2 sub-regions each
+    { r0: 118, r1: 124, n: baseN * 3, subs: 1 },  // thin divider
+    { r0: 124, r1: 164, n: baseN * 2, subs: 1 },  // third ring 16-fold
+    { r0: 164, r1: 170, n: baseN,    subs: 1 },   // thin divider
+    { r0: 170, r1: 210, n: baseN,    subs: 3 },   // fourth ring, 3 sub-regions
+    { r0: 210, r1: 216, n: baseN * 2, subs: 1 },  // thin divider
+    { r0: 216, r1: 250, n: baseN * 3, subs: 1 },  // outer ring 24-fold
+    { r0: 250, r1: 256, n: baseN * 4, subs: 1 },  // outermost thin border
+  ];
+
+  for (const ring of rings) {
+    const { r0, r1, n, subs } = ring;
+    const angleStep = (2 * Math.PI) / n;
+    const subStep = angleStep / subs;
+    // One groupId per sub-slot, shared across all n sectors (symmetry!)
+    const subGroups = Array.from({ length: subs }, newGroup);
+
+    for (let i = 0; i < n; i++) {
+      for (let s = 0; s < subs; s++) {
+        const a0 = i * angleStep + s * subStep - Math.PI / 2;
+        const a1 = a0 + subStep;
+        addRegion(el('path', { d: arcPath(r0, r1, a0, a1) }), subGroups[s]);
+      }
+    }
+  }
+
+  // Decorative dot ring at r=75 (between ring 2 and 3)
+  {
+    const g = newGroup();
+    for (let i = 0; i < baseN; i++) {
+      const angle = (i + 0.5) * (2 * Math.PI / baseN) - Math.PI / 2;
+      addRegion(el('circle', { cx: CX + 75 * Math.cos(angle), cy: CY + 75 * Math.sin(angle), r: 7 }), g);
+    }
+  }
+
+  // Decorative dot ring at r=121
+  {
+    const g = newGroup();
+    for (let i = 0; i < baseN * 2; i++) {
+      const angle = (i + 0.5) * (2 * Math.PI / (baseN * 2)) - Math.PI / 2;
+      addRegion(el('circle', { cx: CX + 121 * Math.cos(angle), cy: CY + 121 * Math.sin(angle), r: 5 }), g);
+    }
+  }
+
+  // Outer bounding circle (decorative only)
+  svg.appendChild(el('circle', { cx: CX, cy: CY, r: 257, fill: 'none', stroke: '#bbb', 'stroke-width': 0.6, 'pointer-events': 'none' }));
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+let selectedColor = null;
+let undoStack = []; // [{groupId, elements: [{el, prevFill}]}]
+
+// ── Click to fill ────────────────────────────────────────────────────────────
+svg.addEventListener('click', e => {
+  if (!selectedColor) return;
+  const target = e.target;
+  if (!target.classList.contains('region')) return;
+  const gid = target.dataset.group;
+  const members = groups[gid];
+  if (!members) return;
+  const snapshot = members.map(m => ({ el: m, prevFill: m.getAttribute('fill') || '#fff' }));
+  members.forEach(m => m.setAttribute('fill', selectedColor));
+  undoStack.push(snapshot);
+});
+
+// ── Palette ──────────────────────────────────────────────────────────────────
+function setupPalette(colors) {
+  const palette = document.getElementById('palette');
+  palette.innerHTML = '';
+  colors.forEach((color, i) => {
+    const s = document.createElement('button');
+    s.className = 'swatch' + (i === 0 ? ' active' : '');
+    s.style.background = color;
+    s.title = color;
+    s.setAttribute('aria-label', color);
+    s.addEventListener('click', () => {
+      document.querySelectorAll('.swatch').forEach(x => x.classList.remove('active'));
+      s.classList.add('active');
+      selectedColor = color;
+    });
+    palette.appendChild(s);
+  });
+  selectedColor = colors[0];
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-undo').addEventListener('click', () => {
+  if (!undoStack.length) return;
+  undoStack.pop().forEach(({ el, prevFill }) => el.setAttribute('fill', prevFill));
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  document.querySelectorAll('.region').forEach(e => e.setAttribute('fill', '#fff'));
+  undoStack = [];
+});
+
+document.getElementById('btn-new').addEventListener('click', () => {
+  undoStack = [];
+  generateMandala(Math.random() * 0xffffffff | 0);
+});
+
+document.getElementById('btn-download').addEventListener('click', () => {
+  const svgEl = document.getElementById('mandala-svg');
+  const xml = new XMLSerializer().serializeToString(svgEl);
+  const canvas = document.createElement('canvas');
+  canvas.width = 540;
+  canvas.height = 540;
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  const blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    const a = document.createElement('a');
+    a.download = 'mandala.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  img.src = url;
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+function init() {
+  const park = PARKS[Math.floor(Math.random() * PARKS.length)];
+  document.getElementById('park-name').textContent = park.name;
+  setupPalette(park.colors);
+  generateMandala(Math.random() * 0xffffffff | 0);
+}
+
+init();
+</script>
+</body>
+</html>
