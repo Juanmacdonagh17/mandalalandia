@@ -32,7 +32,36 @@
     #mandala-svg {
       display: block;
       cursor: crosshair;
+      animation: spin 60s linear infinite;
+      transform-origin: center;
+      border-radius: 50%;
     }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    #palette-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 560px;
+      width: 100%;
+      margin-top: 1.4rem;
+      margin-bottom: 0.5rem;
+    }
+    #group-filter {
+      background: none;
+      border: 1px solid #c8c8c8;
+      font-family: inherit;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #666;
+      cursor: pointer;
+      padding: 0.3rem 0.6rem;
+    }
+    #group-filter:focus { outline: none; border-color: #333; }
 
     .region {
       stroke: #bbb;
@@ -45,7 +74,7 @@
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      margin: 1.4rem 0 0.8rem;
+      margin-bottom: 0.8rem;
       max-width: 560px;
       width: 100%;
     }
@@ -113,18 +142,23 @@
   <h1>Mandala</h1>
 </header>
 
-<svg id="mandala-svg" width="540" height="540" viewBox="0 0 540 540">
-  <rect width="540" height="540" fill="#fff" />
-</svg>
-
-<div id="palette"></div>
-
 <div id="controls">
   <button class="ctrl" id="btn-undo">Undo</button>
   <button class="ctrl" id="btn-reset">Reset</button>
   <button class="ctrl" id="btn-new">New Design</button>
   <button class="ctrl" id="btn-download">Download</button>
 </div>
+
+<svg id="mandala-svg" width="540" height="540" viewBox="0 0 540 540">
+  <circle id="mandala-bg" cx="270" cy="270" r="258" fill="#fff" />
+</svg>
+
+<div id="palette-header">
+  <select id="group-filter">
+    <option value="all">All colours</option>
+  </select>
+</div>
+<div id="palette"></div>
 
 <script>
 // ── Park data ────────────────────────────────────────────────────────────────
@@ -320,6 +354,9 @@ function generateMandala(seed) {
   // Bounding circle
   svg.appendChild(svgEl('circle', { cx: CX, cy: CY, r: cur,
     fill: 'none', stroke: '#bbb', 'stroke-width': 0.6, 'pointer-events': 'none' }));
+
+  // Match background circle to actual mandala radius
+  document.getElementById('mandala-bg').setAttribute('r', cur);
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
@@ -356,11 +393,23 @@ const COLOR_GROUPS = [
 
 function buildPalette() {
   const palette = document.getElementById('palette');
+  const filter  = document.getElementById('group-filter');
   palette.innerHTML = '';
 
-  COLOR_GROUPS.forEach(({ label, colors }) => {
+  // Populate dropdown (skip "All" — already in HTML)
+  filter.innerHTML = '<option value="all">All colours</option>';
+  COLOR_GROUPS.forEach(({ key, label }) => {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = label;
+    filter.appendChild(opt);
+  });
+
+  // Build rows
+  COLOR_GROUPS.forEach(({ key, label, colors }) => {
     const row = document.createElement('div');
     row.className = 'color-group';
+    row.dataset.group = key;
 
     const lbl = document.createElement('span');
     lbl.className = 'group-label';
@@ -386,6 +435,14 @@ function buildPalette() {
 
     row.appendChild(swatches);
     palette.appendChild(row);
+  });
+
+  // Filter logic
+  filter.addEventListener('change', () => {
+    const val = filter.value;
+    document.querySelectorAll('.color-group').forEach(row => {
+      row.style.display = (val === 'all' || row.dataset.group === val) ? 'flex' : 'none';
+    });
   });
 
   const first = palette.querySelector('.swatch');
