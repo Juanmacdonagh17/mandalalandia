@@ -42,7 +42,6 @@
     }
 
     .region {
-      fill: #fff;
       stroke: #bbb;
       stroke-width: 0.6;
       transition: filter 0.08s;
@@ -234,6 +233,7 @@ function generateMandala(seed) {
     groups[groupId].push(pathEl);
     pathEl.dataset.group = groupId;
     pathEl.classList.add('region');
+    pathEl.style.fill = '#fff';
     svg.appendChild(pathEl);
   }
 
@@ -309,8 +309,8 @@ svg.addEventListener('click', e => {
   const gid = target.dataset.group;
   const members = groups[gid];
   if (!members) return;
-  const snapshot = members.map(m => ({ el: m, prevFill: m.getAttribute('fill') || '#fff' }));
-  members.forEach(m => m.setAttribute('fill', selectedColor));
+  const snapshot = members.map(m => ({ el: m, prevFill: m.style.fill || '#fff' }));
+  members.forEach(m => m.style.fill = selectedColor);
   undoStack.push(snapshot);
 });
 
@@ -337,11 +337,11 @@ function setupPalette(colors) {
 // ── Controls ─────────────────────────────────────────────────────────────────
 document.getElementById('btn-undo').addEventListener('click', () => {
   if (!undoStack.length) return;
-  undoStack.pop().forEach(({ el, prevFill }) => el.setAttribute('fill', prevFill));
+  undoStack.pop().forEach(({ el, prevFill }) => el.style.fill = prevFill);
 });
 
 document.getElementById('btn-reset').addEventListener('click', () => {
-  document.querySelectorAll('.region').forEach(e => e.setAttribute('fill', '#fff'));
+  document.querySelectorAll('.region').forEach(e => e.style.fill = '#fff');
   undoStack = [];
 });
 
